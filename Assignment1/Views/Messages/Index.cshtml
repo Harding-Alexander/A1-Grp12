@@ -1,0 +1,34 @@
+﻿@model IEnumerable<Assignment1.Models.Message>
+
+@{
+    ViewData["Title"] = "Index";
+}
+
+<h2>Message Board</h2>
+
+@if (User.Identity.IsAuthenticated)
+{
+    <p>
+        <a asp-action="Create" class="btn btn-success">Post New Message</a>
+    </p>
+}
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Message</th>
+            <th>Posted By</th>
+            <th>Date</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+            <tr>
+                <td>@item.Content</td>
+                <td>@item.UserName</td>
+                <td>@item.CreatedAt.ToString("g")</td>
+            </tr>
+        }
+    </tbody>
+</table>
