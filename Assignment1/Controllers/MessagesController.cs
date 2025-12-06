@@ -2,47 +2,57 @@
 using Assignment1.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Security.Claims;
-using System.Threading.Tasks;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Assignment1.Controllers
 {
-    [Authorize]
+    [Authorize(Roles = "Supervisor,Employee")]
     public class MessagesController : Controller
     {
+        
+        public static byte[] AESKEYS;
+        public static byte[] AESIV;
         private readonly ApplicationDbContext _context;
+        private readonly IConfiguration _config;
 
-        public MessagesController(ApplicationDbContext context)
+        public MessagesController(ApplicationDbContext context, IConfiguration config)
         {
             _context = context;
+            _config = config;
         }
 
-        // Everyone can view the board
-        [AllowAnonymous]
+        // GET: Messages - Both can view
         public async Task<IActionResult> Index()
         {
             var messages = await _context.Messages
                 .OrderByDescending(m => m.CreatedAt)
                 .ToListAsync();
+
+            foreach (var msg in messages)
+            {
+                if (!string.IsNullOrEmpty(msg.EncryptedContent))
+                {
+                    msg.DecryptedContent = Decrypt(msg.EncryptedContent);
+                }
+            }
+
             return View(messages);
         }
 
-        // Only logged-in users can post
-        [Authorize]
+        // GET: Messages/Create - Supervisor only
+        [Authorize(Roles = "Supervisor")]
         public IActionResult Create()
         {
             return View();
         }
 
-        // Create message: fills username & date automatically
+        // POST: Messages/Create - Supervisor only
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [Authorize]
+        [Authorize(Roles = "Supervisor")]
         public async Task<IActionResult> Create([Bind("Content")] Message message)
         {
             if (ModelState.IsValid)
@@ -50,6 +60,7 @@ namespace Assignment1.Controllers
                 message.UserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
                 message.UserName = User.Identity?.Name;
                 message.CreatedAt = DateTime.Now;
+                message.EncryptedContent = Encrypt(message.Content);
 
                 _context.Add(message);
                 await _context.SaveChangesAsync();
@@ -57,17 +68,48 @@ namespace Assignment1.Controllers
                 return RedirectToAction(nameof(Index));
             }
 
-            Console.WriteLine($"ModelState Valid: {ModelState.IsValid}");
-            foreach (var state in ModelState)
+            return View(message);
+        }
+
+        private Aes AesInitialize()
+        {
+            Aes aes = Aes.Create();
+           
+            var aesSettings = new AESSettings();
+
+           
+            if (aesSettings != null)
             {
-                foreach (var error in state.Value.Errors)
-                {
-                    Console.WriteLine($"Error in {state.Key}: {error.ErrorMessage}");
-                }
+                aes.Key = AESKEYS;
+                aes.IV = AESIV;
             }
 
-            // If invalid, re-render form so you can see validation errors
-            return View(message);
+            return aes;
+        }
+
+        private string Encrypt(string plainText)
+        {
+            Aes aes = AesInitialize();
+            ICryptoTransform encryptor = aes.CreateEncryptor();
+            byte[] input = Encoding.UTF8.GetBytes(plainText);
+            byte[] output = encryptor.TransformFinalBlock(input, 0, input.Length);
+            return Convert.ToBase64String(output);
+        }
+
+        private string Decrypt(string cipherText)
+        {
+            try
+            {
+                Aes aes = AesInitialize();
+                ICryptoTransform decryptor = aes.CreateDecryptor();
+                byte[] input = Convert.FromBase64String(cipherText);
+                byte[] output = decryptor.TransformFinalBlock(input, 0, input.Length);
+                return Encoding.UTF8.GetString(output);
+            }
+            catch
+            {
+                return cipherText;
+            }
         }
     }
 }
