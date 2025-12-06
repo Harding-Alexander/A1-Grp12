@@ -13,6 +13,11 @@ namespace Assignment1.Data
     public static class DbInitializer
     {
         public static AppSecrets appSecrets { get; set; }
+
+        public static string secretEmployeePassword;
+        public static string secretSupervisorPassword;
+
+
         public static async Task<int> SeedUsersAndRoles(IServiceProvider serviceProvider)
         {
         
@@ -43,7 +48,7 @@ namespace Assignment1.Data
 
             return 0;
         }
-
+       
         private static async Task<int> SeedRoles(RoleManager<IdentityRole> roleManager)
         {
             // Create Admin Role
@@ -70,7 +75,7 @@ namespace Assignment1.Data
                 LastName = "Supervisor",
                 EmailConfirmed = true
             };
-            var result = await userManager.CreateAsync(adminUser, appSecrets.SupervisorPassword);
+            var result = await userManager.CreateAsync(adminUser, secretSupervisorPassword);
             if (!result.Succeeded)
                 return 1;  // should log an error message here
 
@@ -88,7 +93,9 @@ namespace Assignment1.Data
                 LastName = "Employee",
                 EmailConfirmed = true
             };
-            result = await userManager.CreateAsync(memberUser, appSecrets.EmployeePassword);
+
+            
+            result = await userManager.CreateAsync(memberUser, secretEmployeePassword);
             if (!result.Succeeded)
                 return 3;  // should log an error message here
 
